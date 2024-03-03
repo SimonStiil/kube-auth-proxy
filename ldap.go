@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/go-ldap/ldap"
 )
@@ -44,15 +43,15 @@ func (auth *LDAPAuth) SetMembershipAtributes(Filter string) {
 	auth.MembershipAtributes = Filter
 }
 
-func (auth *LDAPAuth) GetDN(Username string) (string, error) {
+func (auth *LDAPAuth) TestLogin(Username string, Password string) (bool, error) {
 	conn, err := ldap.DialURL(auth.URL)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 	defer conn.Close()
 	err = conn.Bind(user, password)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 
 	// Lookup group
@@ -60,10 +59,10 @@ func (auth *LDAPAuth) GetDN(Username string) (string, error) {
 	searchReq := ldap.NewSearchRequest(auth.BaseDN, ldap.ScopeWholeSubtree, 0, 0, 0, false, groupFilter, []string{"displayName"}, []ldap.Control{})
 	result, err := conn.Search(searchReq)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 	if len(result.Entries) != 1 {
-		return "", nil
+		return false, nil
 	}
 
 	// Lookup User
@@ -72,25 +71,12 @@ func (auth *LDAPAuth) GetDN(Username string) (string, error) {
 	searchReq = ldap.NewSearchRequest(auth.BaseDN, ldap.ScopeWholeSubtree, 0, 0, 0, false, userFilter, []string{"displayName"}, []ldap.Control{})
 	result, err = conn.Search(searchReq)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 	if len(result.Entries) != 1 {
-		return "", errors.New(fmt.Sprintf("Found %v entries, expected exactly 1.", len(result.Entries)))
+		return false, errors.New(fmt.Sprintf("Found %v entries, expected exactly 1.", len(result.Entries)))
 	}
-	return result.Entries[0].DN, nil
-}
-
-func (auth *LDAPAuth) TestLogin(UserDN string, Password string) (bool, error) {
-
-	ldapURL := "ldaps://diskstation.stiil.dk:636"
-
-	conn, err := ldap.DialURL(ldapURL)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer conn.Close()
-
-	err = conn.Bind(UserDN, Password)
+	err = conn.Bind(result.Entries[0].DN, Password)
 	if err != nil {
 		return false, err
 	} else {
