@@ -1,0 +1,14 @@
+Proxy:
+  Port: 8080
+  TLS:
+    Certificate: # Certificate to User
+    Key: # Certificate Key to User
+LDAP:
+  URL: ldaps://ldap.example.com:636
+  Group: kubeauth
+  BaseDN: dc=example,dc=com
+  BindDN: uid=svc-kube-auth,cn=users,dc=example,dc=com
+#Kubernetes:
+#  Host: api.k3s.example.com
+#  KubeConfig:
+#  Namespace:

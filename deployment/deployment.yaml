@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-auth-proxy
+  namespace: kube-auth-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-auth-proxy
+  template:
+    metadata:
+      labels:
+        app: kube-auth-proxy
+    spec:
+      containers:
+      - name: proxy
+        image: ghcr.io/simonstiil/kube-auth-proxy:main
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: LDAP_BIND_PASSWORD
+          valueFrom:
+            secretKeyRef: 
+              name: ldap-secret
+              key: password
+        volumeMounts:
+        - mountPath: /app/config.yaml
+          name: config
+          subPath: config.yaml
+      serviceAccountName: kube-auth-proxy
+      volumes:
+      - name: config
+        configMap:
+          name: config

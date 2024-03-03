@@ -1,0 +1,14 @@
+apiVersion: v1
+data:
+  config.yaml: |-
+    Proxy:
+      Port: 8080
+    LDAP:
+      URL: ldaps://ldap.example.com:636
+      Group: kubeauth
+      BaseDN: dc=example,dc=com
+      BindDN: uid=svc-kube-auth,cn=users,dc=example,dc=com
+kind: ConfigMap
+metadata:
+  name: config
+  namespace: kube-auth-proxy
