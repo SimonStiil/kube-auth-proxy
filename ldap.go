@@ -61,8 +61,11 @@ func (auth *LDAPAuth) TestLogin(Username string, Password string) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	if len(result.Entries) != 1 {
-		return false, nil
+	if len(result.Entries) < 1 {
+		return false, errors.New(fmt.Sprintf("Group %v not found", auth.Group))
+	}
+	if len(result.Entries) > 1 {
+		return false, errors.New(fmt.Sprintf("Group search found %v entries, expected exactly 1.", len(result.Entries)))
 	}
 
 	// Lookup User
@@ -73,8 +76,11 @@ func (auth *LDAPAuth) TestLogin(Username string, Password string) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	if len(result.Entries) != 1 {
-		return false, errors.New(fmt.Sprintf("Found %v entries, expected exactly 1.", len(result.Entries)))
+	if len(result.Entries) < 1 {
+		return false, errors.New(fmt.Sprintf("User %v not found", Username))
+	}
+	if len(result.Entries) > 1 {
+		return false, errors.New(fmt.Sprintf("User serarch found %v entries, expected exactly 1.", len(result.Entries)))
 	}
 	err = conn.Bind(result.Entries[0].DN, Password)
 	if err != nil {
