@@ -26,9 +26,10 @@ import (
 type Certificate struct {
 	*ecdsa.PrivateKey
 	*x509.Certificate
-	name string
-	key  []byte
-	cert []byte
+	name     string
+	key      []byte
+	cert     []byte
+	lastUsed time.Time
 }
 
 const (
@@ -97,6 +98,7 @@ func CertificateFromSecret(secret *corev1.Secret) (*Certificate, error) {
 		if err != nil {
 			return nil, err
 		}
+		cert.UpdateLastUsed()
 		return cert, nil
 	} else {
 		return nil, fmt.Errorf("wrong keytype from secret : %v", pemPrivkey.Type)
@@ -134,7 +136,16 @@ func NewCertificate(client *KubeClient, name string) (*Certificate, error) {
 	if err != nil {
 		log.Printf("Warning: Issue deleting CSR: %+v", err)
 	}
+	cert.UpdateLastUsed()
 	return cert, err
+}
+
+func (cert *Certificate) UpdateLastUsed() {
+	cert.lastUsed = time.Now()
+}
+
+func (cert *Certificate) Stale() bool {
+	return cert.lastUsed.Add(time.Minute * 30).Before(time.Now())
 }
 
 func (cert *Certificate) GetTLSCert() (tls.Certificate, error) {
