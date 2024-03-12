@@ -23,7 +23,7 @@ func Test_Certificate(t *testing.T) {
 	//		t.Log(cert.GetPEMCert())
 	//	})
 	t.Run("Get Certificate Expiration", func(t *testing.T) {
-		expiration, err := cert.getCertificateExpiration()
+		expiration, err := cert.getCertificateNotAfterTime()
 		if err != nil {
 			t.Error(err)
 		}

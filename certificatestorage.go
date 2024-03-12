@@ -8,27 +8,34 @@ import (
 
 type CertificateStorage struct {
 	storage *sync.Map
+	client  *KubeClient
 }
 
-func NewCertificateStorage() *CertificateStorage {
-	cs := &CertificateStorage{storage: new(sync.Map)}
+func NewCertificateStorage(client *KubeClient) *CertificateStorage {
+	cs := &CertificateStorage{storage: new(sync.Map), client: client}
 	go cs.cleanupTask()
 	return cs
 }
 
-func (CS *CertificateStorage) GetCertificate(client *KubeClient, name string) (*Certificate, error) {
+func (CS *CertificateStorage) GetCertificate(name string) (*Certificate, error) {
 	cert, ok := CS.storage.Load(name)
-	log.Printf("Unable to read certificate for user: %v", ok)
 	if ok {
 		certOfType, ok := cert.(*Certificate)
-		log.Printf("Unable to cast *Certificate for user: %v", ok)
 		if ok {
-			certOfType.UpdateLastUsed()
-			log.Println("Using cached certificate")
-			return certOfType, nil
+			if certOfType.IsAboutToExpire() {
+				log.Println("Cached certificate is about to expire renewing")
+			} else {
+				certOfType.UpdateLastUsed()
+				log.Println("Using cached certificate")
+				return certOfType, nil
+			}
+		} else {
+			log.Printf("Unable to cast *Certificate for user: %v", name)
 		}
+	} else {
+		log.Printf("Unable to read certificate for user: %v", name)
 	}
-	certOfType, err := NewClientAuth(client, name)
+	certOfType, err := NewClientAuth(CS.client, name)
 	if err != nil {
 		return nil, err
 	}

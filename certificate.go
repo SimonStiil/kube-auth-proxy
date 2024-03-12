@@ -51,7 +51,8 @@ const (
 	// Time format compliant with kubernetes labels
 	LABEL_TIME_FORMAT = "2006-01-02T15.04.05Z07.00"
 	// Label validator
-	LABEL_TIME_VALIDATOR = "(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?"
+	LABEL_TIME_VALIDATOR                = "(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?"
+	CERTIFICATE_ABOUTTOEXPIRE_THRESHOLD = time.Hour
 )
 
 // Main Certificate handler function.
@@ -69,7 +70,7 @@ func NewClientAuth(client *KubeClient, name string) (*Certificate, error) {
 		expired := !ok || val == LABLE_EXPIRATION_UNASSIGNED
 		if !expired {
 			expiration, err := stringToTime(secret.Labels[LABLE_EXPIRATION])
-			expired = time.Now().Add(time.Hour).After(expiration) || err != nil
+			expired = time.Now().Add(CERTIFICATE_ABOUTTOEXPIRE_THRESHOLD).After(expiration) || err != nil
 		}
 		if expired {
 			client.DeleteSecret(name)
@@ -160,7 +161,7 @@ func (cert *Certificate) makeSecret(name string) *corev1.Secret {
 	data[SECRET_KEY_KEY] = cert.key
 	data[SECRET_KEY_CERT] = cert.cert
 	// Get Label content
-	decodedCert, err := cert.getCertificateExpiration()
+	decodedCert, err := cert.getCertificateNotAfterTime()
 	expiration := LABLE_EXPIRATION_UNASSIGNED
 	if err == nil {
 		expiration = timeToString(decodedCert)
@@ -296,13 +297,21 @@ func (cert *Certificate) getCertificate() (*x509.Certificate, error) {
 		return nil, fmt.Errorf("wrong keytype from secret : %v", pemPublicCert.Type)
 	}
 }
-func (cert *Certificate) getCertificateExpiration() (*time.Time, error) {
+func (cert *Certificate) getCertificateNotAfterTime() (*time.Time, error) {
 	// Firct convert the certificate from PEM to x509 then read NotAfter
 	decodedeCert, err := cert.getCertificate()
 	if err != nil {
 		return nil, err
 	}
 	return &decodedeCert.NotAfter, nil
+}
+func (cert *Certificate) IsAboutToExpire() bool {
+	// Find is a certificate about to expire based on threshold
+	expiration, err := cert.getCertificateNotAfterTime()
+	if err != nil {
+		return true
+	}
+	return time.Now().Add(CERTIFICATE_ABOUTTOEXPIRE_THRESHOLD).After(*expiration)
 }
 
 // Some Helper Time to String and String to Time functions

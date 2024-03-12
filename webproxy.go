@@ -11,13 +11,16 @@ import (
 )
 
 type Proxy struct {
-	LDAPAuth   *LDAPAuth
-	KubeClient *KubeClient
-	Config     *MainConfig
+	LDAPAuth          *LDAPAuth
+	KubeClient        *KubeClient
+	Config            *MainConfig
+	certificaeStorage *CertificateStorage
 }
 
 func (proxy *Proxy) StartProxy(config ProxyConfig) error {
 	// Start up the proxy.
+	proxy.certificaeStorage = NewCertificateStorage(proxy.KubeClient)
+
 	// Assing order of Handler Functions
 	http.HandleFunc("/", proxy.BasicAuth(proxy.ProxyHander()))
 	hostString := fmt.Sprintf("%s:%s", config.Host, config.Port)
@@ -64,10 +67,6 @@ func (proxy *Proxy) BasicAuth(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-var appendRequestHeadder = map[string][]string{
-	"Cache-Control": []string{"max-age=0,no-cache no-store,must-revalidate"},
-}
-
 var removeRequestHeaderKeys = [...]string{
 	"Authorization",
 	"Accept-Encoding",
@@ -85,7 +84,8 @@ func (proxy *Proxy) ProxyHander() http.HandlerFunc {
 		// TODO: Parse the username from previous authentication + Groups
 		if ok {
 			// Get an auth certificate either from Secret og new Certitificate
-			cert, err := NewClientAuth(proxy.KubeClient, username)
+			cert, err := proxy.certificaeStorage.GetCertificate(username)
+			//cert, err := NewClientAuth(proxy.KubeClient, username)
 			if err != nil {
 				log.Printf("Error creating certificate : %+v\n", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -108,7 +108,9 @@ func (proxy *Proxy) ProxyHander() http.HandlerFunc {
 			}
 			// Read body to proxy
 			body, err := io.ReadAll(r.Body)
-			log.Printf("> %v %v %+v %v ", username, r.Method, r.URL.Path, len(body))
+			if proxy.Config.Verbose {
+				log.Printf("> %v %v %+v %v\n- %+v", username, r.Method, r.URL.Path, len(body), r.Header)
+			}
 			if err != nil {
 				log.Printf("Error reading origin body: %+v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -128,11 +130,9 @@ func (proxy *Proxy) ProxyHander() http.HandlerFunc {
 					}
 				}
 				if !skip {
+					// f headerValue
 					proxyReq.Header[headerKey] = headerValue
 				}
-			}
-			for headerKey, headerValue := range appendRequestHeadder {
-				proxyReq.Header[headerKey] = headerValue
 			}
 			// Do Request
 			proxyResp, err := httpClient.Do(proxyReq)
@@ -144,7 +144,9 @@ func (proxy *Proxy) ProxyHander() http.HandlerFunc {
 			// Read body to return
 			defer proxyResp.Body.Close()
 			proxyBody, err := io.ReadAll(proxyResp.Body)
-			log.Printf("< %v %v %v %+v %v ", username, r.Method, r.URL.Path, proxyResp.Status, len(proxyBody))
+			if proxy.Config.Verbose {
+				log.Printf("< %v %v %v %v %+v %v\n- %+v", username, r.Method, r.URL.Path, proxyResp.StatusCode, proxyResp.Status, len(proxyBody), proxyResp.Header)
+			}
 			if err != nil {
 				log.Printf("Error reading proxy body: %+v", err)
 				http.Error(w, err.Error(), http.StatusBadGateway)
@@ -152,13 +154,13 @@ func (proxy *Proxy) ProxyHander() http.HandlerFunc {
 			}
 			// Copy response headers
 			respH := w.Header()
-			//log.Printf("Response Headers: %+v", proxyResp.Header)
+			// log.Printf("Response Headers: %+v", proxyResp.Header)
 			for key, value := range proxyResp.Header {
 				respH[key] = value
 			}
 			// Write body and statuscode.
-			w.Write(proxyBody)
 			w.WriteHeader(proxyResp.StatusCode)
+			w.Write(proxyBody)
 		}
 	})
 }

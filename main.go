@@ -24,6 +24,7 @@ type MainConfig struct {
 	LDAP       LDAPConfig
 	Kubernetes KubernetesConfig
 	Proxy      ProxyConfig
+	Verbose    bool
 }
 type ProxyConfig struct {
 	Port string
@@ -56,6 +57,7 @@ func LoadConfig() MainConfig {
 	viper.AddConfigPath(".")
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
+	viper.SetDefault("Verbose", false)
 	viper.SetDefault("Proxy.Host", "")
 	viper.SetDefault("Proxy.Port", "8080")
 	viper.SetDefault("Kubernetes.KubeConfig", "")
