@@ -27,7 +27,7 @@ podTemplate(yaml: '''
         - name: kaniko-secret
           mountPath: /root/.docker
       - name: golang
-        image: golang:1.23.3-alpine3.19
+        image: golang:1.23.4-alpine3.19
         command:
         - sleep
         args: 
