@@ -8,7 +8,7 @@ import (
 	"net"
 	"net/url"
 
-	"github.com/go-ldap/ldap"
+	ldap "github.com/go-ldap/ldap/v3"
 )
 
 // Good documentation:
