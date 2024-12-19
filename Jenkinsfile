@@ -9,7 +9,7 @@ podTemplate(yaml: '''
     spec:
       containers:
       - name: kaniko
-        image: gcr.io/kaniko-project/executor:v1.22.0-debug
+        image: gcr.io/kaniko-project/executor:v1.23.2-debug
         command:
         - sleep
         args: 
@@ -27,11 +27,22 @@ podTemplate(yaml: '''
         - name: kaniko-secret
           mountPath: /root/.docker
       - name: golang
-        image: golang:1.22.2-alpine3.19
+        image: golang:1.23.3-alpine3.19
         command:
         - sleep
         args: 
         - 99d
+        env:
+        - name: HOST_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        volumeMounts:
+        - name: "golang-cache"
+          mountPath: "/root/.cache/"
+        - name: "golang-prgs"
+          mountPath: "/go/pkg/"
       restartPolicy: Never
       volumes:
       - name: kaniko-secret
@@ -40,6 +51,12 @@ podTemplate(yaml: '''
           items:
           - key: .dockerconfigjson
             path: config.json
+      - name: "golang-cache"
+        persistentVolumeClaim:
+          claimName: "golang-cache"
+      - name: "golang-prgs"
+        persistentVolumeClaim:
+          claimName: "golang-prgs"
 ''') {
   node(POD_LABEL) {
     TreeMap scmData
@@ -55,16 +72,21 @@ podTemplate(yaml: '''
     container('golang') {
       stage('Get CA Certs') {
         sh '''
-          apk --update add ca-certificates 
+          apk --update add ca-certificates
           cp /etc/ssl/certs/ca-certificates.crt .
+          go install github.com/jstemmer/go-junit-report@v1.0.0
         '''
       }
       stage('UnitTests') {
+        currentBuild.description = sh(returnStdout: true, script: 'echo $HOST_NAME').trim()
         withEnv(['CGO_ENABLED=0']) {
           sh '''
-            go test .
+            go test . -v -tags="unit integration" -covermode=atomic -coverprofile=coverage.out 2>&1 | go-junit-report -set-exit-code > report.xml
+            go tool cover -func coverage.out
           '''
         }
+        junit 'report.xml'
+        archiveArtifacts artifacts: 'report.xml', fingerprint: true
       }
       stage('Build Application AMD64') {
         withEnv(['CGO_ENABLED=0', 'GOOS=linux', 'GOARCH=amd64', "PACKAGE_CONTAINER_APPLICATION=${properties.PACKAGE_CONTAINER_APPLICATION}"]) {
@@ -124,6 +146,17 @@ podTemplate(yaml: '''
               sh 'manifest-tool push from-args --platforms linux/amd64,linux/arm64 --template $PACKAGE_DESTINATION/$PACKAGE_NAME:$BRANCH_NAME-ARCH --target $PACKAGE_DESTINATION/$PACKAGE_NAME:$BRANCH_NAME'
             }
           }
+        }
+      }
+      if (env.CHANGE_ID) {
+        if (pullRequest.createdBy.equals("renovate[bot]")){
+          if (pullRequest.mergeable) {
+            stage('Approve and Merge PR') {
+              pullRequest.merge(commitTitle: pullRequest.title, commitMessage: pullRequest.body, mergeMethod: 'squash')
+            }
+          }
+        } else {
+          echo "'PR Created by \""+ pullRequest.createdBy + "\""
         }
       }
     }
