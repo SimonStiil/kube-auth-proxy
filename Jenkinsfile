@@ -73,6 +73,9 @@ def template = '''
             value: "cosine, inetorgperson, nis, dyngroup"
         ports:
           - containerPort: 389
+        securityContext:
+          runAsUser: 1000
+          fsGroup: 1000
       restartPolicy: Never
       volumes:
       - name: kaniko-secret
