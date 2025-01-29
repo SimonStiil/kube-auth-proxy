@@ -21,10 +21,11 @@ const (
 // https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/
 
 type MainConfig struct {
-	LDAP       LDAPConfig
-	Kubernetes KubernetesConfig
-	Proxy      ProxyConfig
-	Verbose    bool
+	LDAP          LDAPConfig
+	Kubernetes    KubernetesConfig
+	Proxy         ProxyConfig
+	Verbose       bool
+	Impersonation bool
 }
 type ProxyConfig struct {
 	Port string
@@ -41,6 +42,7 @@ type LDAPConfig struct {
 	BaseDN              string
 	BindDN              string
 	BindPassword        string
+	OuBase              string
 	SearchUserFilter    string
 	SearchGroupFilter   string
 	MembershipAtributes string
@@ -58,13 +60,14 @@ func LoadConfig() MainConfig {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.SetDefault("Verbose", false)
+	viper.SetDefault("Impersonation", true)
 	viper.SetDefault("Proxy.Host", "")
 	viper.SetDefault("Proxy.Port", "8080")
 	viper.SetDefault("Kubernetes.KubeConfig", "")
 	viper.SetDefault("Kubernetes.Namespace", "kube-auth-proxy")
 	viper.SetDefault("Kubernetes.Host", "kubernetes.default")
 	viper.SetDefault("LDAP.SearchUserFilter", "(&(uid=%s)(memberOf=%s))")
-	viper.SetDefault("LDAP.SearchGroupFilter", "(&(cn=%s)(objectClass=posixGroup))")
+	viper.SetDefault("LDAP.SearchGroupFilter", "(&(cn=%s)(objectClass=groupOfNames))")
 	viper.BindEnv("LDAP.BindPassword", "LDAP_BIND_PASSWORD")
 	err := viper.ReadInConfig() // Find and read the config file
 	if err != nil {             // Handle errors reading the config file
@@ -84,7 +87,11 @@ func main() {
 		log.Printf("Error creating kubeconfig : %+v\n", err)
 		return
 	}
+	// Start up the proxy.
 	// Setup and start the Proxy
 	proxy := &Proxy{LDAPAuth: LDAP, KubeClient: client, Config: &Config}
+	if !Config.Impersonation {
+		proxy.certificaeStorage = NewCertificateStorage(client)
+	}
 	proxy.StartProxy(Config.Proxy)
 }

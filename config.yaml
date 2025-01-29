@@ -4,11 +4,14 @@ Proxy:
     Certificate: # Certificate to User
     Key: # Certificate Key to User
 LDAP:
-  URL: ldaps://ldap.example.com:636
-  Group: kubeauth
+  URL: ldap://localhost
+  Group: readers
+  OuBase: ou
+#  SearchGroupFilter: (&(cn=%s)(objectClass=posixGroup))
   BaseDN: dc=example,dc=com
-  BindDN: uid=svc-kube-auth,cn=users,dc=example,dc=com
-#Kubernetes:
-#  Host: api.k3s.example.com
+  BindDN: cn=admin,dc=example,dc=com 
+  # cn=users,
+Kubernetes:
+  Host: api.k3s.example.com:6443
 #  KubeConfig:
 #  Namespace:

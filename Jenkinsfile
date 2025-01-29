@@ -3,7 +3,10 @@ properties([disableConcurrentBuilds(), buildDiscarder(logRotator(artifactDaysToK
 @Library('pipeline-library')
 import dk.stiil.pipeline.Constants
 
-podTemplate(yaml: '''
+String testpassword = generateAplhaNumericString( 16 )
+String rootpassword = generateAplhaNumericString( 16 )
+
+def template = '''
     apiVersion: v1
     kind: Pod
     spec:
@@ -38,11 +41,38 @@ podTemplate(yaml: '''
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
+        - name: LDAP_BIND_PASSWORD
+          value: "TEMPORARY_FAKE_ROOT_PASSWORD"
+        - name: LDAP_USER_PASSWORD
+          value: "TEMPORARY_FAKE_PASSWORD"
         volumeMounts:
         - name: "golang-cache"
           mountPath: "/root/.cache/"
         - name: "golang-prgs"
           mountPath: "/go/pkg/"
+      - name: openldap
+        image: bitnami/openldap:2.6.9
+        env:
+          - name: LDAP_PORT_NUMBER
+            value: "389"
+          - name: LDAP_ADMIN_PASSWORD
+            value: "TEMPORARY_FAKE_ROOT_PASSWORD"
+          - name: LDAP_USERS
+            value: "user"
+          - name: LDAP_PASSWORDS
+            value: "TEMPORARY_FAKE_PASSWORD"
+          - name: LDAP_GROUP_OU
+            value: "groups"
+          - name: LDAP_ROOT
+            value: "dc=example,dc=com"
+          - name: LDAP_CONFIG_ADMIN_ENABLED
+            value: "yes"
+          - name: LDAP_CONFIG_ADMIN_PASSWORD
+            value: "TEMPORARY_FAKE_ROOT_PASSWORD"
+          - name: LDAP_EXTRA_SCHEMAS
+            value: "cosine, inetorgperson, nis, dyngroup"
+        ports:
+          - containerPort: 389
       restartPolicy: Never
       volumes:
       - name: kaniko-secret
@@ -57,7 +87,10 @@ podTemplate(yaml: '''
       - name: "golang-prgs"
         persistentVolumeClaim:
           claimName: "golang-prgs"
-''') {
+'''
+template = template.replaceAll("TEMPORARY_FAKE_PASSWORD",testpassword).replaceAll("TEMPORARY_FAKE_ROOT_PASSWORD",rootpassword)
+
+podTemplate(yaml: template) {
   node(POD_LABEL) {
     TreeMap scmData
     String gitCommitMessage
@@ -68,6 +101,13 @@ podTemplate(yaml: '''
       gitMap = scmGetOrgRepo scmData.GIT_URL
       githubWebhookManager gitMap: gitMap, webhookTokenId: 'jenkins-webhook-repo-cleanup'
       properties = readProperties file: 'package.env'
+    }
+    stage('Prep Testcontainer') {
+      container('openldap') {
+        sh '''
+          ldapadd -D "cn=admin,cn=config" -w "$LDAP_ADMIN_PASSWORD" -f ldap-config.ldif
+        '''
+      }
     }
     container('golang') {
       stage('Get CA Certs') {

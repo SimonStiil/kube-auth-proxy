@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"crypto/tls"
 	"crypto/x509"
-	"net"
-	"net/url"
 
 	ldap "github.com/go-ldap/ldap/v3"
 )
@@ -35,70 +34,105 @@ func (auth *LDAPAuth) dialServer() (*ldap.Conn, error) {
 		}
 	}
 	if auth.Config != nil {
-		lurl, err := url.Parse(auth.URL)
-		if err != nil {
-			return nil, err
-		}
-		host, port, err := net.SplitHostPort(lurl.Host)
-		if err != nil {
-			// we asume that error is due to missing port
-			host = lurl.Host
-			port = ""
-		}
-		if port == "" {
-			port = ldap.DefaultLdapsPort
-		}
-		return ldap.DialTLS("tcp", net.JoinHostPort(host, port), auth.Config)
+		return ldap.DialURL(auth.URL, ldap.DialWithTLSConfig(auth.Config))
 	} else {
 		return ldap.DialURL(auth.URL)
 	}
 }
 
-func (auth *LDAPAuth) TestLogin(Username string, Password string) (bool, error) {
+type LDAPUser struct {
+	User   string
+	Groups []string
+}
+
+func (auth *LDAPAuth) LookupGroup(conn *ldap.Conn, group string) (*ldap.Entry, error) {
+	groupFilter := fmt.Sprintf(auth.SearchGroupFilter, group)
+	searchReq := ldap.NewSearchRequest(auth.BaseDN, ldap.ScopeWholeSubtree, 0, 0, 0, false, groupFilter, []string{"displayName"}, []ldap.Control{})
+	result, err := conn.Search(searchReq)
+	if err != nil {
+		return nil, err
+	}
+	//fmt.Printf("search for group %v:", groupFilter)
+	//result.PrettyPrint(2)
+	if len(result.Entries) < 1 {
+		return nil, fmt.Errorf("group %v not found", group)
+	}
+	if len(result.Entries) > 1 {
+		return nil, fmt.Errorf("group search found %v entries, expected exactly 1", len(result.Entries))
+	}
+	return result.Entries[0], nil
+}
+
+func (auth *LDAPAuth) findGroupIdentifier(entry *ldap.Entry) string {
+	return strings.TrimPrefix(entry.DN, fmt.Sprintf("cn=%s", auth.Group))
+}
+func (auth *LDAPAuth) ListGroups(groupEntry *ldap.Entry, userEntry *ldap.Entry) []string {
+	groupIdentifier := auth.findGroupIdentifier(groupEntry)
+	groups := userEntry.GetAttributeValues("memberOf")
+	var groupstrings []string
+	for _, group := range groups {
+		str := strings.TrimSuffix(group, groupIdentifier)
+		str = strings.TrimPrefix(str, "cn=")
+		str = strings.ReplaceAll(str, " ", "")
+		groupstrings = append(groupstrings, str)
+	}
+	return groupstrings
+}
+
+func (auth *LDAPAuth) LookupUser(conn *ldap.Conn, username string, groupDN string) (*ldap.Entry, error) {
+	userFilter := fmt.Sprintf(auth.SearchUserFilter, username, groupDN)
+	searchReq := ldap.NewSearchRequest(auth.BaseDN, ldap.ScopeWholeSubtree, 0, 0, 0, false, userFilter, []string{"displayName", "memberOf"}, []ldap.Control{})
+	result, err := conn.Search(searchReq)
+	if err != nil {
+		return nil, err
+	}
+	//log.Printf("search for user %v:", userFilter)
+	//result.PrettyPrint(2)
+	if len(result.Entries) < 1 {
+		fmt.Printf("@E user %v not found", username)
+		return nil, nil
+	}
+	if len(result.Entries) > 1 {
+		return nil, fmt.Errorf("user serarch found %v entries, expected exactly 1", len(result.Entries))
+	}
+	return result.Entries[0], nil
+}
+
+func (auth *LDAPAuth) TestLogin(Username string, Password string) (*LDAPUser, error) {
 	// Create server conntction
 	conn, err := auth.dialServer()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer conn.Close()
 	// Login with main user for group and user search
 	err = conn.Bind(auth.BindDN, auth.BindPassword)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	// Lookup group
-	groupFilter := fmt.Sprintf(auth.SearchGroupFilter, auth.Group)
-	searchReq := ldap.NewSearchRequest(auth.BaseDN, ldap.ScopeWholeSubtree, 0, 0, 0, false, groupFilter, []string{"displayName"}, []ldap.Control{})
-	result, err := conn.Search(searchReq)
+	groupEntry, err := auth.LookupGroup(conn, auth.Group)
 	if err != nil {
-		return false, err
-	}
-	if len(result.Entries) < 1 {
-		return false, fmt.Errorf("group %v not found", auth.Group)
-	}
-	if len(result.Entries) > 1 {
-		return false, fmt.Errorf("group search found %v entries, expected exactly 1", len(result.Entries))
+		return nil, err
 	}
 
 	// Lookup User
-	GroupDN := result.Entries[0].DN
-	userFilter := fmt.Sprintf(auth.SearchUserFilter, Username, GroupDN)
-	searchReq = ldap.NewSearchRequest(auth.BaseDN, ldap.ScopeWholeSubtree, 0, 0, 0, false, userFilter, []string{"displayName"}, []ldap.Control{})
-	result, err = conn.Search(searchReq)
+	userEntry, err := auth.LookupUser(conn, Username, groupEntry.DN)
+	if userEntry == nil && err == nil {
+		return nil, nil
+	}
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	if len(result.Entries) < 1 {
-		return false, fmt.Errorf("user %v not found", Username)
-	}
-	if len(result.Entries) > 1 {
-		return false, fmt.Errorf("user serarch found %v entries, expected exactly 1", len(result.Entries))
-	}
-	err = conn.Bind(result.Entries[0].DN, Password)
+
+	err = conn.Bind(userEntry.DN, Password)
 	if err != nil {
-		return false, err
+		if ldap.IsErrorAnyOf(err, 49) {
+			return nil, nil
+		}
+		return nil, err
 	} else {
-		return true, nil
+		return &LDAPUser{User: Username, Groups: auth.ListGroups(groupEntry, userEntry)}, nil
 	}
 }
