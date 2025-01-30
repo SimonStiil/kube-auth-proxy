@@ -77,7 +77,9 @@ var removeRequestHeaderKeys = [...]string{
 
 func (proxy *Proxy) proxy(w http.ResponseWriter, r *http.Request, user *LDAPUser) {
 	if user != nil {
-		var tlsCert tls.Certificate
+		tLSClientConfig := &tls.Config{
+			RootCAs: proxy.KubeClient.caCertPool,
+		}
 		if proxy.certificaeStorage != nil {
 			// Get an auth certificate either from Secret og new Certitificate
 			cert, err := proxy.certificaeStorage.GetCertificate(user.User)
@@ -87,27 +89,25 @@ func (proxy *Proxy) proxy(w http.ResponseWriter, r *http.Request, user *LDAPUser
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			tlsCert, err = cert.GetTLSCert()
+			tlsCert, err := cert.GetTLSCert()
 			if err != nil {
 				log.Printf("Error creating TLS certificate : %+v\n", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
+			} else {
+				tLSClientConfig.Certificates = []tls.Certificate{tlsCert}
 			}
 		} else {
-			if proxy.KubeClient.certificate == nil {
-				log.Printf("Unable to read impersonation certificate : %+v\n", nil)
+			if proxy.KubeClient.certificate != nil {
+				tLSClientConfig.Certificates = []tls.Certificate{*proxy.KubeClient.certificate}
 			}
-			tlsCert = *proxy.KubeClient.certificate
 		}
-		// Setup HTTP Client from Certificate and CA
 		httpClient := &http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					RootCAs:      proxy.KubeClient.caCertPool,
-					Certificates: []tls.Certificate{tlsCert},
-				},
+				TLSClientConfig: tLSClientConfig,
 			},
 		}
+		// Setup HTTP Client from Certificate and CA
 		// Read body to proxy
 		body, err := io.ReadAll(r.Body)
 		if proxy.Config.Verbose {
@@ -139,6 +139,9 @@ func (proxy *Proxy) proxy(w http.ResponseWriter, r *http.Request, user *LDAPUser
 		// Setting impersonation headders
 		// https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation
 		if proxy.certificaeStorage == nil {
+			if proxy.KubeClient.bearerToken != nil {
+				proxyReq.Header["Authorization"] = []string{"Bearer " + *proxy.KubeClient.bearerToken}
+			}
 			proxyReq.Header["Impersonate-User"] = []string{user.User}
 			proxyReq.Header["Impersonate-Group"] = user.Groups
 		}

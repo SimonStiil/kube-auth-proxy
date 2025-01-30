@@ -35,6 +35,7 @@ type KubeClient struct {
 	namespace   string
 	caCertPool  *x509.CertPool
 	certificate *tls.Certificate
+	bearerToken *string
 }
 
 const (
@@ -88,41 +89,32 @@ func NewKubeClient(kubernetesConfig KubernetesConfig) (*KubeClient, error) {
 		log.Printf("@D Read CA Certificate from CAData\n")
 		caCertPool.AppendCertsFromPEM(config.CAData)
 	}
-
-	var certificate tls.Certificate
-	if len(config.CertData) > 0 && len(config.KeyData) > 0 {
-		certificate, err = tls.X509KeyPair(config.CertData, config.KeyData)
-		log.Printf("@D Read Certificate from CertData && KeyData\n")
-	} else {
-		if config.KeyFile != "" && config.CertFile != "" {
-			certificate, err = tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
-		}
-		/*
-			var certKey []byte
-					certKey, err = os.ReadFile(config.KeyFile)
-					if err != nil {
-						log.Printf("@I Error reading Certificate key file (%v): %+v\n", config.KeyFile, err)
-					}
-				}
-				var cert []byte
-				if config.KeyFile != "" {
-					cert, err = os.ReadFile(config.CertFile)
-					if err != nil {
-						log.Printf("@I Error reading Certificate key file (%v): %+v\n", config.CertFile, err)
-					}
-				}
-				log.Printf("@D Read Certificate from CertFile && KeyFile\n")
-				certificate, err = tls.X509KeyPair(cert, certKey)
-		*/
-		if err != nil {
-			log.Printf("@F Error reading Certificate From Kubeconfig: %v\n", err.Error())
-			log.Printf("@F Tried reading: %v & %v\n", config.CertFile, config.KeyFile)
-			os.Exit(123)
-		}
-	}
 	client := &KubeClient{expiration: CERTIFICATE_EXPIRATION_SECONDS, Context: context.Background(), namespace: kubernetesConfig.Namespace, caCertPool: caCertPool}
-	if err == nil {
-		client.certificate = &certificate
+	if len(config.BearerToken) > 0 {
+		client.bearerToken = &config.BearerToken
+	} else {
+		var certificate tls.Certificate
+		if len(config.CertData) > 0 && len(config.KeyData) > 0 {
+			log.Printf("@D Read Certificate from CertData & KeyData\n")
+			certificate, err = tls.X509KeyPair(config.CertData, config.KeyData)
+			if err != nil {
+				log.Printf("@F Error reading Certificate From CertData && KeyData: %v\n", err.Error())
+				os.Exit(123)
+			} else {
+				client.certificate = &certificate
+			}
+		} else {
+			if (len(config.CertFile) > 0) && (len(config.KeyFile) > 0) {
+				log.Printf("@D Read Certificate from \n - CertFile: %v\n - KeyFile: %v\n", config.CertFile, config.KeyFile)
+				certificate, err = tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
+				if err != nil {
+					log.Printf("@F Error reading Certificate From Kubeconfig: %v\n", err.Error())
+					os.Exit(123)
+				} else {
+					client.certificate = &certificate
+				}
+			}
+		}
 	}
 
 	// create the clientset
