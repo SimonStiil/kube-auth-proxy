@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha1"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"flag"
@@ -31,8 +32,9 @@ type KubeClient struct {
 	expiration int32
 	clientset  *kubernetes.Clientset
 	context.Context
-	namespace  string
-	caCertPool *x509.CertPool
+	namespace   string
+	caCertPool  *x509.CertPool
+	certificate *tls.Certificate
 }
 
 const (
@@ -78,13 +80,44 @@ func NewKubeClient(kubernetesConfig KubernetesConfig) (*KubeClient, error) {
 		if err != nil {
 			log.Printf("@I Error reading CA Certificate file (%v): %+v\n", config.CAFile, err)
 		} else {
+			log.Printf("@D Read CA Certificate from file (%v)\n", config.CAFile)
 			caCertPool.AppendCertsFromPEM(caCert)
 		}
 	}
 	if len(config.CAData) > 0 {
+		log.Printf("@D Read CA Certificate from CAData\n")
 		caCertPool.AppendCertsFromPEM(config.CAData)
 	}
+
+	var certificate tls.Certificate
+	if len(config.CertData) > 0 && len(config.KeyData) > 0 {
+		certificate, err = tls.X509KeyPair(config.CertData, config.KeyData)
+		log.Printf("@D Read Certificate from CertData && KeyData\n")
+	} else {
+		var certKey []byte
+		if config.KeyFile != "" {
+			certKey, err = os.ReadFile(config.KeyFile)
+			if err != nil {
+				log.Printf("@I Error reading Certificate key file (%v): %+v\n", config.KeyFile, err)
+			}
+		}
+		var cert []byte
+		if config.KeyFile != "" {
+			cert, err = os.ReadFile(config.CertFile)
+			if err != nil {
+				log.Printf("@I Error reading Certificate key file (%v): %+v\n", config.CertFile, err)
+			}
+		}
+		log.Printf("@D Read Certificate from CertFile && KeyFile\n")
+		certificate, err = tls.X509KeyPair(cert, certKey)
+	}
 	client := &KubeClient{expiration: CERTIFICATE_EXPIRATION_SECONDS, Context: context.Background(), namespace: kubernetesConfig.Namespace, caCertPool: caCertPool}
+	if err == nil {
+		client.certificate = &certificate
+	} else {
+		log.Printf("@F Error reading Certificate From Kubeconfig\n")
+		os.Exit(123)
+	}
 
 	// create the clientset
 	client.clientset, err = kubernetes.NewForConfig(config)

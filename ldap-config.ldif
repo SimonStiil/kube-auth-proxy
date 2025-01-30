@@ -1,0 +1,13 @@
+dn: cn=z-module,cn=config
+objectClass: olcModuleList
+cn: z-module
+olcModuleLoad: dynlist.so
+olcModulePath: /opt/bitnami/openldap/lib/openldap
+
+dn: olcOverlay=dynlist,olcDatabase={2}mdb,cn=config
+objectClass: olcConfig
+objectClass: olcDynListConfig
+objectClass: olcOverlayConfig
+objectClass: top
+olcOverlay: dynlist
+olcDynListAttrSet: groupOfUrls memberURL member+memberOf@groupOfNames
