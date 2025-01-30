@@ -1,0 +1,3 @@
+docker run -it --rm --name openldap -u 1000 -p 389:1389 -p 636:1636 --env LDAP_ADMIN_USERNAME=admin --env LDAP_ADMIN_PASSWORD=adminpassword --env LDAP_USERS=user --env LDAP_PASSWORDS=password --env LDAP_ROOT=dc=example,dc=com --env LDAP_CONFIG_ADMIN_ENABLED=yes --env LDAP_EXTRA_SCHEMAS="cosine, inetorgperson, nis, dyngroup" bitnami/openldap:latest
+
+ldapadd -D "cn=admin,cn=config" -w "configpassword" -f ldap-config.ldif
