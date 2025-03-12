@@ -3,6 +3,9 @@
   "extends": [
     "config:recommended"
   ],
+  "labels": ["dependencies"],
+  "assignees": ["SimonStiil"],
+  "reviewers": ["SimonStiil"],
   "groupName": "all dependencies",
   "groupSlug": "all",
   "lockFileMaintenance": {
