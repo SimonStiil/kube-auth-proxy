@@ -73,7 +73,7 @@ require (
 )
 
 require (
-	github.com/spf13/viper v1.20.0
+	github.com/spf13/viper v1.20.1
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	k8s.io/client-go v0.32.3
 )
