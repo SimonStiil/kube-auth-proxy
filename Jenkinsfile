@@ -51,7 +51,7 @@ def template = '''
         - name: "golang-prgs"
           mountPath: "/go/pkg/"
       - name: openldap
-        image: bitnami/openldap:2.6.10
+        image: bitnamilegacy/openldap:2.6.10-debian-12-r4
         env:
           - name: LDAP_PORT_NUMBER
             value: "389"
