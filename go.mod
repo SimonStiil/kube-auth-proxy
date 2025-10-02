@@ -3,7 +3,7 @@ module github.com/SimonStiil/kube-auth-proxy
 go 1.24.0
 
 require (
-	github.com/go-ldap/ldap/v3 v3.4.11
+	github.com/go-ldap/ldap/v3 v3.4.12
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
 )
