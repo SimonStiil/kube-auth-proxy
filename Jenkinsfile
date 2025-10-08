@@ -12,7 +12,7 @@ def template = '''
     spec:
       containers:
       - name: buildkit
-        image: moby/buildkit:v0.25.0-rootless # renovate
+        image: moby/buildkit:v0.25.1-rootless # renovate
         command:
         - /bin/sh
         tty: true
@@ -22,7 +22,7 @@ def template = '''
         - name: certs
           mountPath: /certs/client
       - name: golang
-        image: golang:1.25.1-alpine # renovate
+        image: golang:1.25.2-alpine # renovate
         command:
         - sleep
         args: 
