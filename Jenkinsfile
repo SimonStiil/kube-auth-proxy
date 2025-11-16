@@ -96,8 +96,8 @@ podTemplate(yaml: template) {
     stage('checkout SCM') {  
       scmData = checkout scm
       gitCommitMessage = sh(returnStdout: true, script: "git log --format=%B -n 1 ${scmData.GIT_COMMIT}").trim()
-      gitMap = scmGetOrgRepo scmData.GIT_URL
-      githubWebhookManager gitMap: gitMap, webhookTokenId: 'jenkins-webhook-repo-cleanup'
+//      gitMap = scmGetOrgRepo scmData.GIT_URL
+//      githubWebhookManager gitMap: gitMap, webhookTokenId: 'jenkins-webhook-repo-cleanup'
       properties = readProperties file: 'package.env'
     }
     stage('Prep Testcontainer') {
