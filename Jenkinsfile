@@ -22,7 +22,7 @@ def template = '''
         - name: certs
           mountPath: /certs/client
       - name: golang
-        image: golang:1.25.7-alpine # renovate
+        image: golang:1.26.0-alpine # renovate
         command:
         - sleep
         args: 
