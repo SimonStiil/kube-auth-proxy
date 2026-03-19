@@ -3,13 +3,13 @@ module github.com/SimonStiil/kube-auth-proxy
 go 1.25.0
 
 require (
-	github.com/go-ldap/ldap/v3 v3.4.12
-	k8s.io/api v0.35.1
-	k8s.io/apimachinery v0.35.1
+	github.com/go-ldap/ldap/v3 v3.4.13
+	k8s.io/api v0.35.3
+	k8s.io/apimachinery v0.35.3
 )
 
 require (
-	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
+	github.com/Azure/go-ntlmssp v0.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -42,12 +42,12 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/crypto v0.48.0 // indirect
+	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/term v0.37.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/term v0.40.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
@@ -65,5 +65,5 @@ require (
 
 require (
 	github.com/spf13/viper v1.21.0
-	k8s.io/client-go v0.35.1
+	k8s.io/client-go v0.35.3
 )
