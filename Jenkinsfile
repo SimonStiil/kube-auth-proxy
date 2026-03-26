@@ -12,7 +12,7 @@ def template = '''
     spec:
       containers:
       - name: buildkit
-        image: moby/buildkit:v0.28.0-rootless # renovate
+        image: moby/buildkit:v0.28.1-rootless # renovate
         command:
         - /bin/sh
         tty: true
