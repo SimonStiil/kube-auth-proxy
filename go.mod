@@ -4,8 +4,8 @@ go 1.26.0
 
 require (
 	github.com/go-ldap/ldap/v3 v3.4.13
-	k8s.io/api v0.36.0
-	k8s.io/apimachinery v0.36.0
+	k8s.io/api v0.36.1
+	k8s.io/apimachinery v0.36.1
 )
 
 require (
@@ -65,5 +65,5 @@ require (
 
 require (
 	github.com/spf13/viper v1.21.0
-	k8s.io/client-go v0.36.0
+	k8s.io/client-go v0.36.1
 )
